@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>FORTRESS TYPER - Bertahan &amp; Serang!</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI', Arial, sans-serif; }
+  html,body { width:100%; height:100%; overflow:hidden; background:#000; }
+  #app { position:relative; width:100vw; height:100vh; }
+  canvas { display:block; width:100%; height:100%; }
+
+  /* ---------- HUD ---------- */
+  #hud { position:absolute; top:0; left:0; right:0; z-index:10; pointer-events:none; padding:18px 24px; display:flex; justify-content:space-between; color:#fff; text-shadow:0 2px 6px rgba(0,0,0,.7); }
+  .hud-panel { background:rgba(10,14,30,.55); backdrop-filter:blur(4px); border:1px solid rgba(120,180,255,.25); border-radius:12px; padding:10px 18px; }
+  #score { font-size:24px; font-weight:900; color:#ffd400; }
+  #waveTag { font-size:13px; color:#7fdcff; margin-top:2px; font-weight:700; letter-spacing:1px; }
+  #comboTag { font-size:13px; color:#ff9f5c; margin-top:2px; font-weight:700; }
+
+  .hp-wrap { width:220px; }
+  .hp-label { font-size:11px; letter-spacing:2px; color:#9fd1ff; margin-bottom:4px; }
+  .hp-bar { height:16px; border-radius:8px; background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.3); overflow:hidden; }
+  .hp-fill { height:100%; width:100%; background:linear-gradient(90deg,#33ffb0,#00d4ff); transition:width .25s ease; }
+  .hp-fill.low { background:linear-gradient(90deg,#ff5c5c,#ff9f5c); }
+
+  #bufferBox { position:absolute; bottom:26px; left:50%; transform:translateX(-50%); background:rgba(10,14,30,.7); border:1px solid rgba(120,180,255,.4); color:#fff; padding:10px 26px; border-radius:24px; font-size:22px; font-weight:800; letter-spacing:2px; min-width:70px; text-align:center; z-index:12; box-shadow:0 0 20px rgba(0,180,255,.25); }
+  #bufferBox.invalid { color:#ff6b6b; border-color:#ff6b6b; }
+
+  /* ---------- Menu ---------- */
+  #menu { position:absolute; inset:0; z-index:30; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; color:#fff; padding:20px; background:radial-gradient(circle at 50% 20%,#1a1440,#04050c 75%); }
+  #menu h1 { font-size:clamp(30px,6vw,58px); font-weight:900; letter-spacing:2px; background:linear-gradient(90deg,#7fdcff,#ffd400); -webkit-background-clip:text; background-clip:text; color:transparent; text-shadow:0 4px 20px rgba(0,150,255,.3); }
+  #menu p.sub { color:#9fd1ff; margin-top:10px; font-size:15px; letter-spacing:1px; max-width:520px; }
+  .diff-grid { display:flex; gap:16px; margin-top:32px; flex-wrap:wrap; justify-content:center; }
+  .diff-card { background:rgba(255,255,255,.06); border:2px solid rgba(255,255,255,.15); border-radius:14px; padding:20px 26px; cursor:pointer; transition:.2s; width:160px; }
+  .diff-card:hover { background:rgba(255,255,255,.15); border-color:#ffd400; transform:translateY(-4px); }
+  .diff-card .ic { font-size:34px; }
+  .diff-card h3 { margin-top:8px; color:#ffd400; font-size:16px; letter-spacing:1px; }
+  .diff-card p { font-size:12px; color:#cfe0ff; margin-top:6px; line-height:1.4; }
+
+  #countdown { position:absolute; inset:0; display:none; align-items:center; justify-content:center; z-index:35; }
+  #countdown .num { font-size:130px; font-weight:900; color:#ffd400; text-shadow:0 0 50px rgba(255,212,0,.9); }
+
+  #gameOver { position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center; background:rgba(3,4,10,.92); color:#fff; z-index:40; text-align:center; }
+  #gameOver h1 { font-size:48px; color:#ff5c5c; font-weight:900; text-shadow:0 0 30px rgba(255,80,80,.5); }
+  #gameOver .stats { margin-top:18px; font-size:17px; line-height:2; color:#e6e6e6; }
+  #gameOver .stats b { color:#ffd400; }
+  #gameOver button { margin-top:26px; background:linear-gradient(180deg,#ffe45c,#ffb400); border:none; padding:14px 34px; border-radius:10px; font-weight:900; font-size:16px; cursor:pointer; box-shadow:0 6px 0 #b37a00; }
+  #gameOver button:active { transform:translateY(4px); box-shadow:0 2px 0 #b37a00; }
+
+  #waveBanner { position:absolute; top:40%; left:50%; transform:translate(-50%,-50%); z-index:20; font-size:44px; font-weight:900; color:#ffd400; text-shadow:0 0 30px rgba(255,212,0,.7); opacity:0; pointer-events:none; letter-spacing:3px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="game"></canvas>
+
+  <div id="hud">
+    <div class="hud-panel">
+      <div id="score">SKOR: 0</div>
+      <div id="waveTag">WAVE 1</div>
+      <div id="comboTag">Combo: 0</div>
+    </div>
+    <div class="hud-panel hp-wrap">
+      <div class="hp-label">HEALTH BENTENG</div>
+      <div class="hp-bar"><div class="hp-fill" id="hpFill"></div></div>
+    </div>
+  </div>
+
+  <div id="bufferBox">_</div>
+  <div id="waveBanner"></div>
+
+  <div id="menu">
+    <h1>🏰 FORTRESS TYPER</h1>
+    <p class="sub">Musuh datang menyerang benteng dari segala arah. Ketik nama atau kalimat yang muncul di atas musuh untuk menembak &amp; menghancurkannya sebelum mereka mencapai benteng!</p>
+    <div class="diff-grid">
+      <div class="diff-card" data-diff="mudah">
+        <div class="ic">🙂</div><h3>MUDAH</h3><p>Musuh lambat, kata pendek</p>
+      </div>
+      <div class="diff-card" data-diff="normal">
+        <div class="ic">⚔️</div><h3>NORMAL</h3><p>Kecepatan seimbang</p>
+      </div>
+      <div class="diff-card" data-diff="sulit">
+        <div class="ic">🔥</div><h3>SULIT</h3><p>Musuh cepat &amp; kalimat panjang</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="countdown"><div class="num" id="countNum">3</div></div>
+
+  <div id="gameOver">
+    <h1>BENTENG RUNTUH!</h1>
+    <div class="stats" id="finalStats"></div>
+    <button id="retryBtn">MAIN LAGI</button>
+  </div>
+</div>
+
+<script>
+(() => {
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+let W, H, DPR;
+function resize(){
+  DPR = Math.min(2, window.devicePixelRatio||1);
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = W*DPR; canvas.height = H*DPR;
+  canvas.style.width = W+'px'; canvas.style.height = H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+window.addEventListener('resize', resize); resize();
+
+// ================= WORD BANK =================
+const WORDS_SHORT = ['api','angin','naga','robot','pedang','panah','baja','petir','badai','hantu','iblis','ksatria','zombie','goblin','laba','ular','harimau','singa','elang','kelelawar'];
+const WORDS_MED = ['penyihir gelap','pasukan orc','naga merah','ksatria hitam','monster laut','roh jahat','pemburu bayangan','raksasa batu','serigala malam','penunggang kuda'];
+const SENTENCES = [
+  'bentengmu tidak akan bertahan lama',
+  'serangan besar akan segera datang',
+  'kegelapan menyelimuti seluruh negeri',
+  'pasukan musuh semakin mendekat',
+  'jaga bentengmu dengan sekuat tenaga',
+  'ketik cepat sebelum semuanya terlambat',
+  'sang naga bangkit dari kegelapan',
+  'para prajurit bersiap untuk bertempur',
+  'gerbang benteng mulai retak perlahan',
+  'hanya kecepatanmu yang bisa menyelamatkan benteng'
+];
+
+const ENEMY_TYPES = [
+  { key:'basic', icon:'👹', color:'#ff5c5c', hp:1, dmg:8,  speedMul:1.0, wordPool:'short' },
+  { key:'fast',  icon:'👻', color:'#8fdcff', hp:1, dmg:6,  speedMul:1.6, wordPool:'short' },
+  { key:'tank',  icon:'🧟', color:'#8f6dff', hp:1, dmg:16, speedMul:0.6, wordPool:'med'   },
+  { key:'boss',  icon:'🐉', color:'#ffb400', hp:1, dmg:30, speedMul:0.45,wordPool:'sentence' }
+];
+
+// ================= STATE =================
+let difficulty = 'normal';
+let diffCfg = {};
+const DIFF_PRESETS = {
+  mudah:  { speed:0.65, spawnMs:2200, bossEvery:8 },
+  normal: { speed:1.0,  spawnMs:1600, bossEvery:6 },
+  sulit:  { speed:1.4,  spawnMs:1100, bossEvery:4 }
+};
+
+let enemies = [];
+let particles = [];
+let projectiles = [];
+let buffer = '';
+let score = 0, combo = 0, bestCombo = 0;
+let hp = 100, maxHp = 100;
+let wave = 1;
+let killsThisWave = 0, killsNeeded = 6;
+let running = false;
+let lastSpawn = 0, lastTime = null;
+let recentWords = [];
+let correctChars = 0, startTime = 0;
+let shakeT = 0;
+let stars = [];
+let baseX, baseY;
+
+function setBasePos(){ baseX = W/2; baseY = H - 110; }
+
+function initStars(){
+  stars = [];
+  for(let i=0;i<160;i++){
+    stars.push({ x:Math.random()*W, y:Math.random()*H, r:Math.random()*1.8+0.3, tw:Math.random()*Math.PI*2, sp:Math.random()*0.5+0.15 });
+  }
+}
+
+// ================= WORD PICK =================
+function pickWordFor(pool){
+  let list = pool==='short'?WORDS_SHORT : pool==='med'?WORDS_MED : SENTENCES;
+  let avail = list.filter(w=>!recentWords.includes(w));
+  if(!avail.length) avail = list;
+  const w = avail[Math.floor(Math.random()*avail.length)];
+  recentWords.push(w); if(recentWords.length>5) recentWords.shift();
+  return w;
+}
+
+// ================= SPAWN =================
+function spawnEnemy(forceBoss){
+  let type;
+  if(forceBoss){ type = ENEMY_TYPES[3]; }
+  else {
+    const r = Math.random();
+    type = r<0.45 ? ENEMY_TYPES[0] : r<0.75 ? ENEMY_TYPES[1] : ENEMY_TYPES[2];
+  }
+  const word = pickWordFor(type.wordPool);
+  const angle = Math.random()*Math.PI*2;
+  const dist = Math.max(W,H)*0.62;
+  const x = W/2 + Math.cos(angle)*dist;
+  const y = H/2 + Math.sin(angle)*dist*0.6 - 60;
+  const baseSpeed = 42 * diffCfg.speed * type.speedMul * (1 + (wave-1)*0.06);
+  enemies.push({
+    id: Math.random(), text: word, type, x, y,
+    speed: baseSpeed, alive:true, hitFlash:0, bob:Math.random()*Math.PI*2,
+    r: type.key==='boss'?46: type.key==='tank'?36: 28
+  });
+}
+
+// ================= INPUT =================
+function handleBuffer(newBuf){
+  const lower = newBuf.toLowerCase();
+  let full = enemies.filter(e=>e.alive && e.text.toLowerCase()===lower);
+  if(full.length){
+    full.sort((a,b)=> distToBase(b) - distToBase(a));
+    killEnemy(full[0]);
+    buffer=''; updateBufferUI();
+    return;
+  }
+  const hasPrefix = enemies.some(e=>e.alive && e.text.toLowerCase().startsWith(lower));
+  if(lower.length===0 || hasPrefix){
+    buffer = newBuf;
+    document.getElementById('bufferBox').classList.remove('invalid');
+  } else {
+    const box = document.getElementById('bufferBox');
+    box.classList.add('invalid');
+    setTimeout(()=>box.classList.remove('invalid'),150);
+    const lastCh = newBuf.slice(-1);
+    buffer = enemies.some(e=>e.alive && e.text.toLowerCase().startsWith(lastCh)) ? lastCh : '';
+    combo = 0;
+  }
+  updateBufferUI();
+}
+function distToBase(e){ return Math.hypot(e.x-baseX, e.y-baseY); }
+
+function updateBufferUI(){
+  document.getElementById('bufferBox').textContent = buffer.length? buffer : '_';
+}
+
+window.addEventListener('keydown', (e) => {
+  if(!running) return;
+  if(e.key==='Backspace'){ buffer = buffer.slice(0,-1); updateBufferUI(); e.preventDefault(); return; }
+  let ch=null;
+  if(e.key===' '){ ch=' '; e.preventDefault(); }
+  else if(e.key.length===1 && /[a-zA-Z]/.test(e.key)){ ch = e.key.toLowerCase(); }
+  if(ch===null) return;
+  handleBuffer(buffer+ch);
+});
+
+// ================= COMBAT =================
+function killEnemy(e){
+  e.alive = false;
+  combo++; bestCombo = Math.max(bestCombo, combo);
+  const base = e.text.replace(/\s/g,'').length * (e.type.key==='boss'?18: e.type.key==='tank'?12:10);
+  score += base + combo*4;
+  correctChars += e.text.length;
+  projectiles.push({ x:baseX, y:baseY-70, tx:e.x, ty:e.y, t:0, dur:140+distToBase(e)*0.12, color: e.type.color, targetId:e.id });
+  enemies = enemies.filter(x=>x!==e);
+  document.getElementById('score').textContent = 'SKOR: '+score;
+  document.getElementById('comboTag').textContent = 'Combo: '+combo;
+  killsThisWave++;
+  if(killsThisWave>=killsNeeded) nextWave();
+}
+
+function explode(x,y,color,count){
+  for(let i=0;i<count;i++){
+    const a = Math.random()*Math.PI*2;
+    const sp = Math.random()*4+1.5;
+    particles.push({ x,y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp, life:1, color, size:Math.random()*3+1.5 });
+  }
+}
+
+function enemyReachesBase(e){
+  hp -= e.type.dmg;
+  combo = 0;
+  document.getElementById('comboTag').textContent = 'Combo: 0';
+  shakeT = 0.35;
+  explode(baseX, baseY-40, '#ff5c5c', 22);
+  enemies = enemies.filter(x=>x!==e);
+  const fill = document.getElementById('hpFill');
+  hp = Math.max(0,hp);
+  fill.style.width = (hp/maxHp*100)+'%';
+  fill.classList.toggle('low', hp < maxHp*0.3);
+  if(hp<=0) endGame();
+}
+
+function nextWave(){
+  wave++;
+  killsThisWave = 0;
+  killsNeeded = 6 + wave;
+  document.getElementById('waveTag').textContent = 'WAVE '+wave;
+  showWaveBanner('WAVE '+wave);
+}
+function showWaveBanner(text){
+  const b = document.getElementById('waveBanner');
+  b.textContent = text;
+  b.style.transition='none'; b.style.opacity='0'; b.style.transform='translate(-50%,-50%) scale(0.7)';
+  requestAnimationFrame(()=>{
+    b.style.transition='opacity .4s, transform .4s';
+    b.style.opacity='1'; b.style.transform='translate(-50%,-50%) scale(1)';
+    setTimeout(()=>{ b.style.opacity='0'; },1200);
+  });
+}
+
+// ================= UPDATE =================
+function update(dt, ts){
+  for(const s of stars){ s.tw += dt*s.sp; }
+
+  if(ts-lastSpawn > diffCfg.spawnMs){
+    const forceBoss = wave%diffCfg.bossEvery===0 && Math.random()<0.5;
+    spawnEnemy(forceBoss);
+    lastSpawn = ts;
+  }
+
+  for(const e of [...enemies]){
+    if(!e.alive) continue;
+    e.bob += dt*4;
+    const dx = baseX-e.x, dy=(baseY-40)-e.y;
+    const d = Math.hypot(dx,dy)||1;
+    e.x += dx/d * e.speed*dt;
+    e.y += dy/d * e.speed*dt;
+    if(e.hitFlash>0) e.hitFlash -= dt*3;
+    if(d < e.r+34){ enemyReachesBase(e); }
+  }
+
+  for(const p of [...projectiles]){
+    p.t += dt*1000;
+    const k = Math.min(1, p.t/p.dur);
+    if(k>=1){
+      explode(p.tx,p.ty,p.color,18);
+      projectiles = projectiles.filter(x=>x!==p);
+    }
+  }
+
+  for(const pt of [...particles]){
+    pt.x += pt.vx; pt.y += pt.vy; pt.vx*=0.94; pt.vy*=0.94;
+    pt.life -= dt*1.6;
+    if(pt.life<=0) particles = particles.filter(x=>x!==pt);
+  }
+
+  if(shakeT>0) shakeT -= dt;
+
+  // active target highlight determined at draw time
+}
+
+// ================= DRAW =================
+function drawBackground(ts){
+  const g = ctx.createRadialGradient(W*0.5,H*0.25,40, W*0.5,H*0.6,Math.max(W,H)*0.9);
+  g.addColorStop(0,'#181048');
+  g.addColorStop(0.55,'#0a0a22');
+  g.addColorStop(1,'#020208');
+  ctx.fillStyle = g;
+  ctx.fillRect(0,0,W,H);
+
+  for(const s of stars){
+    const alpha = 0.35 + Math.sin(s.tw)*0.35+0.3;
+    ctx.globalAlpha = Math.max(0,Math.min(1,alpha));
+    ctx.fillStyle = '#cfe8ff';
+    ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // ground glow ring around base
+  const gg = ctx.createRadialGradient(baseX,baseY,20, baseX,baseY,260);
+  gg.addColorStop(0,'rgba(120,200,255,0.18)');
+  gg.addColorStop(1,'rgba(120,200,255,0)');
+  ctx.fillStyle = gg;
+  ctx.beginPath(); ctx.arc(baseX,baseY,260,0,Math.PI*2); ctx.fill();
+}
+
+function drawBase(ts){
+  ctx.save();
+  ctx.translate(baseX, baseY);
+
+  // shield arc
+  const pulse = 1 + Math.sin(ts/300)*0.03;
+  ctx.save();
+  ctx.scale(pulse,pulse);
+  ctx.strokeStyle = 'rgba(100,200,255,0.55)';
+  ctx.lineWidth = 3;
+  ctx.shadowColor = '#57c7ff';
+  ctx.shadowBlur = 20;
+  ctx.beginPath(); ctx.arc(0,-40,120,Math.PI*1.08,Math.PI*1.92); ctx.stroke();
+  ctx.restore();
+
+  // towers
+  ctx.shadowBlur = 0;
+  function tower(tx){
+    ctx.fillStyle = '#3a3f5c';
+    ctx.fillRect(tx-16,-90,32,90);
+    ctx.fillStyle = '#4d5480';
+    for(let i=0;i<4;i++) ctx.fillRect(tx-16+i*9,-98,6,10);
+    ctx.fillStyle = '#ffd400';
+    ctx.beginPath(); ctx.arc(tx,-96,5,0,Math.PI*2); ctx.fill();
+  }
+  tower(-80); tower(80);
+
+  // main keep
+  const bg = ctx.createLinearGradient(0,-140,0,0);
+  bg.addColorStop(0,'#565d86'); bg.addColorStop(1,'#2c3050');
+  ctx.fillStyle = bg;
+  ctx.beginPath();
+  ctx.moveTo(-70,0); ctx.lineTo(-70,-70); ctx.lineTo(-50,-100); ctx.lineTo(50,-100); ctx.lineTo(70,-70); ctx.lineTo(70,0);
+  ctx.closePath(); ctx.fill();
+
+  // gate glow
+  ctx.fillStyle = '#ffd400';
+  ctx.shadowColor = '#ffd400'; ctx.shadowBlur = 18;
+  ctx.beginPath(); ctx.moveTo(-18,0); ctx.lineTo(-18,-46); ctx.quadraticCurveTo(0,-64,18,-46); ctx.lineTo(18,0); ctx.closePath(); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // flag
+  ctx.strokeStyle = '#ccc'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(0,-100); ctx.lineTo(0,-140); ctx.stroke();
+  ctx.fillStyle = '#ff5c5c';
+  ctx.beginPath(); ctx.moveTo(0,-140); ctx.lineTo(28,-132); ctx.lineTo(0,-122); ctx.closePath(); ctx.fill();
+
+  ctx.restore();
+}
+
+function drawEnemies(target){
+  for(const e of enemies){
+    ctx.save();
+    const bobY = Math.sin(e.bob)*4;
+    ctx.translate(e.x, e.y+bobY);
+
+    // glow
+    ctx.shadowColor = e.type.color;
+    ctx.shadowBlur = 26;
+    ctx.fillStyle = e.type.color;
+    ctx.globalAlpha = 0.22;
+    ctx.beginPath(); ctx.arc(0,0,e.r+10,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+
+    // body circle
+    const grad = ctx.createRadialGradient(-e.r*0.3,-e.r*0.3,4, 0,0,e.r);
+    grad.addColorStop(0, lighten(e.type.color,40));
+    grad.addColorStop(1, e.type.color);
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(0,0,e.r,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth=2; ctx.stroke();
+
+    // icon
+    ctx.font = (e.r*1.3)+'px Arial';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(e.type.icon, 0, 2);
+
+    ctx.restore();
+
+    // label
+    const isTarget = target && target.id===e.id;
+    const labelY = e.y+bobY - e.r - 16;
+    ctx.font = (e.type.key==='boss'||e.type.wordPool==='sentence') ? '600 15px Segoe UI' : '700 16px Segoe UI';
+    ctx.textAlign='center';
+    const text = e.text;
+    const matchLen = isTarget ? buffer.length : 0;
+    const paddingX = 10;
+    const w = ctx.measureText(text).width + paddingX*2;
+    ctx.fillStyle = isTarget ? 'rgba(255,212,0,0.22)' : 'rgba(0,0,0,0.5)';
+    roundRect(e.x - w/2, labelY-16, w, 24, 6);
+    ctx.fill();
+    if(isTarget){
+      ctx.strokeStyle = '#ffd400'; ctx.lineWidth=1.5;
+      roundRect(e.x - w/2, labelY-16, w, 24, 6); ctx.stroke();
+    }
+    // matched vs remaining
+    const matched = text.slice(0,matchLen), rest = text.slice(matchLen);
+    ctx.textAlign='left';
+    const totalW = ctx.measureText(matched).width + ctx.measureText(rest).width;
+    let sx = e.x - totalW/2;
+    ctx.fillStyle = '#5cff8d';
+    ctx.fillText(matched, sx, labelY);
+    sx += ctx.measureText(matched).width;
+    ctx.fillStyle = '#fff';
+    ctx.fillText(rest, sx, labelY);
+  }
+}
+
+function roundRect(x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+
+function lighten(hex, amt){
+  const c = hex.replace('#','');
+  const num = parseInt(c,16);
+  let r = (num>>16)+amt, g = ((num>>8)&0xff)+amt, b=(num&0xff)+amt;
+  r=Math.min(255,r); g=Math.min(255,g); b=Math.min(255,b);
+  return `rgb(${r},${g},${b})`;
+}
+
+function drawProjectiles(){
+  for(const p of projectiles){
+    const k = Math.min(1, p.t/p.dur);
+    const x = p.x + (p.tx-p.x)*k;
+    const y = p.y + (p.ty-p.y)*k;
+    ctx.save();
+    ctx.shadowColor = p.color; ctx.shadowBlur = 16;
+    ctx.strokeStyle = p.color; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(x,y); ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(x,y,4,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+}
+
+function drawParticles(){
+  for(const pt of particles){
+    ctx.globalAlpha = Math.max(0,pt.life);
+    ctx.fillStyle = pt.color;
+    ctx.shadowColor = pt.color; ctx.shadowBlur = 8;
+    ctx.beginPath(); ctx.arc(pt.x,pt.y,pt.size,0,Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+}
+
+function getTarget(){
+  if(!buffer.length) return null;
+  let cands = enemies.filter(e=>e.text.toLowerCase().startsWith(buffer.toLowerCase()));
+  if(!cands.length) return null;
+  cands.sort((a,b)=> distToBase(a)-distToBase(b));
+  return cands[0];
+}
+
+function render(ts){
+  ctx.save();
+  if(shakeT>0){
+    const m = shakeT*14;
+    ctx.translate((Math.random()-0.5)*m, (Math.random()-0.5)*m);
+  }
+  drawBackground(ts);
+  drawBase(ts);
+  const target = getTarget();
+  drawEnemies(target);
+  drawProjectiles();
+  drawParticles();
+  ctx.restore();
+}
+
+// ================= LOOP =================
+function loop(ts){
+  if(!running){ return; }
+  if(lastTime===null) lastTime = ts;
+  const dt = Math.min((ts-lastTime)/1000, 0.05);
+  lastTime = ts;
+  update(dt, ts);
+  render(ts);
+  requestAnimationFrame(loop);
+}
+
+// ================= FLOW =================
+document.querySelectorAll('.diff-card').forEach(card=>{
+  card.addEventListener('click', ()=>{
+    difficulty = card.dataset.diff;
+    diffCfg = { ...DIFF_PRESETS[difficulty] };
+    document.getElementById('menu').style.display='none';
+    startGame();
+  });
+});
+document.getElementById('retryBtn').addEventListener('click', ()=>{
+  document.getElementById('gameOver').style.display='none';
+  document.getElementById('menu').style.display='flex';
+});
+
+function startGame(){
+  setBasePos(); initStars();
+  enemies=[]; particles=[]; projectiles=[]; buffer=''; score=0; combo=0; bestCombo=0;
+  hp=100; maxHp=100; wave=1; killsThisWave=0; killsNeeded=6+wave;
+  lastSpawn=0; lastTime=null; correctChars=0; recentWords=[];
+  document.getElementById('score').textContent='SKOR: 0';
+  document.getElementById('waveTag').textContent='WAVE 1';
+  document.getElementById('comboTag').textContent='Combo: 0';
+  document.getElementById('hpFill').style.width='100%';
+  document.getElementById('hpFill').classList.remove('low');
+  updateBufferUI();
+  runCountdown();
+}
+
+window.addEventListener('resize', ()=>{ setBasePos(); });
+
+function runCountdown(){
+  const cd = document.getElementById('countdown');
+  const num = document.getElementById('countNum');
+  cd.style.display='flex';
+  let c=3; num.textContent=c;
+  const iv = setInterval(()=>{
+    c--;
+    if(c>0) num.textContent=c;
+    else if(c===0) num.textContent='SERANG!';
+    else{
+      clearInterval(iv);
+      cd.style.display='none';
+      running=true;
+      startTime = performance.now();
+      requestAnimationFrame(loop);
+    }
+  },700);
+}
+
+function endGame(){
+  running=false;
+  const elapsedMin = Math.max(0.1,(performance.now()-startTime)/60000);
+  const wpm = Math.round((correctChars/5)/elapsedMin);
+  document.getElementById('finalStats').innerHTML = `
+    Skor Akhir: <b>${score}</b><br>
+    Combo Terbaik: <b>${bestCombo}</b><br>
+    Wave Tercapai: <b>${wave}</b><br>
+    Perkiraan Kecepatan: <b>${wpm} WPM</b>
+  `;
+  document.getElementById('gameOver').style.display='flex';
+}
+})();
+</script>
+</body>
+</html>
